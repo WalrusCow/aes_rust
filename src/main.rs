@@ -65,6 +65,78 @@ fn mix_columns(block: &[u8; 16]) -> [u8; 16] {
     new_block
 }
 
+/// 128 bit key only
+//fn encrypt_block(block: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+//
+//}
+
+/// Do 128 bit AES key schedule
+fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
+    let sb = s_box();
+
+    let xor_words = |a: &[u8], b: &[u8]| -> [u8; 4] {
+        assert_eq!(a.len(), 4);
+        assert_eq!(b.len(), 4);
+        [
+            a[0] ^ b[0],
+            a[1] ^ b[1],
+            a[2] ^ b[2],
+            a[3] ^ b[3],
+        ]
+    };
+
+    let mut round_keys: [[u8; 16]; 11] = [[0; 16]; 11];
+    // Copy the original key as the first round key
+    for i in 0..16 {
+        round_keys[0][i] = key[i];
+    }
+
+    let masks: [u8; 11] = [
+        0x00, // unused, for convenience
+        0x01, 0x02, 0x04, 0x08, 0x10,
+        0x20, 0x40, 0x80, 0x1b, 0x36,
+    ];
+
+
+    // We need to generate 10 more round keys
+    for round in 1..11 {
+        let round_fn = |key: &[u8]| -> [u8; 4] {
+            [
+                sb[key[1] as usize] ^ masks[round],
+                sb[key[2] as usize],
+                sb[key[3] as usize],
+                sb[key[0] as usize],
+            ]
+        };
+
+        // First word is a little special, we apply the round function
+        let new_bytes = {
+            // Avoid borrow conflict with scoping
+            let last_word = round_fn(&round_keys[round - 1][12..16]);
+            let last_round_word = &round_keys[round - 1][0..4];
+            xor_words(last_round_word, &last_word)
+        };
+        for (i, byte) in new_bytes.iter().enumerate() {
+            round_keys[round][i] = *byte;
+        }
+
+        for word in 0..4 {
+            // s for start, which byte to start the word at
+            let s = word * 4;
+
+            let new_bytes = {
+                // Avoid borrow conflict with scoping
+                let last_word = &round_keys[round][s-4..s];
+                let last_round_word = &round_keys[round - 1][s..s+4];
+                xor_words(last_round_word, last_word)
+            };
+            for (i, byte) in new_bytes.iter().enumerate() {
+                round_keys[round][s + i] = *byte;
+            }
+        }
+    }
+    round_keys
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
