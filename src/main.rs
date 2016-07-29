@@ -109,27 +109,19 @@ fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
             ]
         };
 
-        // First word is a little special, we apply the round function
-        let new_bytes = {
-            // Avoid borrow conflict with scoping
-            let last_word = round_fn(&round_keys[round - 1][12..16]);
-            let last_round_word = &round_keys[round - 1][0..4];
-            xor_words(last_round_word, &last_word)
-        };
-        for (i, byte) in new_bytes.iter().enumerate() {
-            round_keys[round][i] = *byte;
-        }
-
         for word in 0..4 {
             // s for start, which byte to start the word at
             let s = word * 4;
 
-            let new_bytes = {
-                // Avoid borrow conflict with scoping
+            // First word is a little special, we apply the round function
+            let new_bytes = if word == 0 {
+                let last_word = round_fn(&round_keys[round - 1][12..16]);
+                xor_words(&round_keys[round - 1][s..s+4], &last_word)
+            } else {
                 let last_word = &round_keys[round][s-4..s];
-                let last_round_word = &round_keys[round - 1][s..s+4];
-                xor_words(last_round_word, last_word)
+                xor_words(&round_keys[round - 1][s..s+4], last_word)
             };
+
             for (i, byte) in new_bytes.iter().enumerate() {
                 round_keys[round][s + i] = *byte;
             }
@@ -139,22 +131,34 @@ fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let file_path = &args[1];
-    let mut file_handle = match File::open(file_path) {
-        Ok(fh) => fh,
-        Err(_) => {
-            println!("Could not open file {}", file_path);
-            return;
-        },
-    };
-    let mut buf: [u8; 4096] = [0; 4096];
-    let bytes_read = match file_handle.read(&mut buf) {
-        Ok(count) => count,
-        Err(_) => {
-            println!("Error reading file.");
-            return;
-        },
-    };
-    println!("Read {} bytes", bytes_read);
+    let key: [u8; 16] = [0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c,];
+    let sch = key_schedule(&key);
+    for (i, round_key) in sch.iter().enumerate() {
+        println!("Round {}", i);
+        for (i, byte) in round_key.iter().enumerate() {
+            if i % 4 == 0 {
+                print!(" ");
+            }
+            print!("{:0>2x}", byte);
+        }
+        print!("\n");
+    }
+    //let args: Vec<String> = env::args().collect();
+    //let file_path = &args[1];
+    //let mut file_handle = match File::open(file_path) {
+    //    Ok(fh) => fh,
+    //    Err(_) => {
+    //        println!("Could not open file {}", file_path);
+    //        return;
+    //    },
+    //};
+    //let mut buf: [u8; 4096] = [0; 4096];
+    //let bytes_read = match file_handle.read(&mut buf) {
+    //    Ok(count) => count,
+    //    Err(_) => {
+    //        println!("Error reading file.");
+    //        return;
+    //    },
+    //};
+    //println!("Read {} bytes", bytes_read);
 }
