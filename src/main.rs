@@ -30,6 +30,41 @@ fn sub_bytes(block: &mut [u8; 16], s_box: &[u8; 256]) -> () {
     }
 }
 
+fn shift_rows(block: &[u8; 16]) -> [u8; 16] {
+    let mut new_block: [u8; 16] = [0; 16];
+    for row in 0..4 {
+        for col in 0..4 {
+            let old_idx = (row * 4 + col) as usize;
+            let new_col = (col - row) % 4;
+            let new_idx = (row * 4 + new_col) as usize;
+            new_block[new_idx] = block[old_idx];
+        }
+    }
+    new_block
+}
+
+fn mix_columns(block: &[u8; 16]) -> [u8; 16] {
+    let dbl = |x: u8| -> u8 {
+        if x & 0x80 == 0x80 {
+            x << 1
+        } else {
+            (x << 1) ^ 0x1b
+        }
+    };
+    let mut new_block = [0u8; 16];
+    for col in 0..4 {
+        let a0 = block[col];
+        let a1 = block[col + 4];
+        let a2 = block[col + 4 * 2];
+        let a3 = block[col + 4 * 3];
+        new_block[col] = dbl(a0) ^ dbl(a1) ^ a1 ^ a2 ^ a3;
+        new_block[col + 4] = a0 ^ dbl(a1) ^ dbl(a2) ^ a2 ^ a3;
+        new_block[col + 4 * 2] = a0 ^ a1 ^ dbl(a2) ^ dbl(a3) ^ a3;
+        new_block[col + 4 * 3] = dbl(a0) ^ a0 ^ a1 ^ a2 ^ dbl(a3);
+    }
+    new_block
+}
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
