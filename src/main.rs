@@ -24,10 +24,12 @@ fn s_box() -> [u8; 256] {
     ]
 }
 
-fn sub_bytes(block: &mut [u8; 16], s_box: &[u8; 256]) -> () {
-    for b in block.iter_mut() {
-        *b = s_box[*b as usize];
+fn sub_bytes(block: &[u8; 16], s_box: &[u8; 256]) -> [u8; 16] {
+    let mut new_block: [u8; 16] = [0; 16];
+    for i in 0..16 {
+        new_block[i] = s_box[block[i] as usize];
     }
+    new_block
 }
 
 fn shift_rows(block: &[u8; 16]) -> [u8; 16] {
@@ -66,9 +68,27 @@ fn mix_columns(block: &[u8; 16]) -> [u8; 16] {
 }
 
 /// 128 bit key only
-//fn encrypt_block(block: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
-//
-//}
+fn encrypt_block(block: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
+    let xor_blocks = |b1: &[u8; 16], b2: &[u8; 16]| -> [u8; 16] {
+        let mut result = [0u8; 16];
+        for i in 0..16 {
+            result[i] = b1[i] ^ b2[i];
+        }
+        result
+    };
+
+    let round_keys = key_schedule(key);
+    let sbox = s_box();
+
+    let mut state = xor_blocks(block, &round_keys[0]);
+
+    for i in 1..10 {
+        state = mix_columns(&shift_rows(&sub_bytes(&state, &sbox)));
+        state = xor_blocks(&state, &round_keys[i]);
+    }
+    state = shift_rows(&sub_bytes(&state, &sbox));
+    xor_blocks(&state, &round_keys[10])
+}
 
 /// Do 128 bit AES key schedule
 fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
@@ -132,7 +152,27 @@ fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
 
 fn main() {
     let key: [u8; 16] = [0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c,];
-    let sch = key_schedule(&key);
+
+
+    let enc_key: [u8; 16] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,];
+    let block: [u8; 16] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,];
+
+    let enc = encrypt_block(&block, &enc_key);
+    println!("==============================");
+    println!("==============================");
+    println!("==============================");
+    println!("==============================");
+    for (i, byte) in enc.iter().enumerate() {
+        print!("{:0>2x}", byte);
+    }
+
+    println!("\n==============================");
+    println!("==============================");
+    println!("==============================");
+    println!("==============================");
+
+
+    let sch = key_schedule(&enc_key);
     for (i, round_key) in sch.iter().enumerate() {
         println!("Round {}", i);
         for (i, byte) in round_key.iter().enumerate() {
