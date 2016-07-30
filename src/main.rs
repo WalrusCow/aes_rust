@@ -33,12 +33,15 @@ fn sub_bytes(block: &[u8; 16], s_box: &[u8; 256]) -> [u8; 16] {
 }
 
 fn shift_rows(block: &[u8; 16]) -> [u8; 16] {
+    //  0,  4,  8, 12
+    //  1,  5,  9, 13
+    //  2,  6, 10, 14
+    //  3,  7, 11, 15
     let mut new_block: [u8; 16] = [0; 16];
     for row in 0..4 {
         for col in 0..4 {
-            let old_idx = (row * 4 + col) as usize;
-            let new_col = (col - row) % 4;
-            let new_idx = (row * 4 + new_col) as usize;
+            let old_idx = col * 4 + row;
+            let new_idx = (16 + old_idx - row * 4) % 16;
             new_block[new_idx] = block[old_idx];
         }
     }
@@ -46,6 +49,10 @@ fn shift_rows(block: &[u8; 16]) -> [u8; 16] {
 }
 
 fn mix_columns(block: &[u8; 16]) -> [u8; 16] {
+    //  0,  4,  8, 12
+    //  1,  5,  9, 13
+    //  2,  6, 10, 14
+    //  3,  7, 11, 15
     let dbl = |x: u8| -> u8 {
         if x & 0x80 == 0x80 {
             x << 1
@@ -55,14 +62,14 @@ fn mix_columns(block: &[u8; 16]) -> [u8; 16] {
     };
     let mut new_block = [0u8; 16];
     for col in 0..4 {
-        let a0 = block[col];
-        let a1 = block[col + 4];
-        let a2 = block[col + 4 * 2];
-        let a3 = block[col + 4 * 3];
-        new_block[col] = dbl(a0) ^ dbl(a1) ^ a1 ^ a2 ^ a3;
-        new_block[col + 4] = a0 ^ dbl(a1) ^ dbl(a2) ^ a2 ^ a3;
-        new_block[col + 4 * 2] = a0 ^ a1 ^ dbl(a2) ^ dbl(a3) ^ a3;
-        new_block[col + 4 * 3] = dbl(a0) ^ a0 ^ a1 ^ a2 ^ dbl(a3);
+        let a0 = block[col * 4];
+        let a1 = block[col * 4 + 1];
+        let a2 = block[col * 4 + 2];
+        let a3 = block[col * 4 + 3];
+        new_block[col * 4] = dbl(a0) ^ dbl(a1) ^ a1 ^ a2 ^ a3;
+        new_block[col * 4 + 1] = a0 ^ dbl(a1) ^ dbl(a2) ^ a2 ^ a3;
+        new_block[col * 4 + 2] = a0 ^ a1 ^ dbl(a2) ^ dbl(a3) ^ a3;
+        new_block[col * 4 + 3] = dbl(a0) ^ a0 ^ a1 ^ a2 ^ dbl(a3);
     }
     new_block
 }
@@ -83,7 +90,9 @@ fn encrypt_block(block: &[u8; 16], key: &[u8; 16]) -> [u8; 16] {
     let mut state = xor_blocks(block, &round_keys[0]);
 
     for i in 1..10 {
-        state = mix_columns(&shift_rows(&sub_bytes(&state, &sbox)));
+        state = sub_bytes(&state, &sbox);
+        state = shift_rows(&state);
+        state = mix_columns(&state);
         state = xor_blocks(&state, &round_keys[i]);
     }
     state = shift_rows(&sub_bytes(&state, &sbox));
@@ -151,38 +160,16 @@ fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
 }
 
 fn main() {
-    let key: [u8; 16] = [0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c,];
-
 
     let enc_key: [u8; 16] = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,];
     let block: [u8; 16] = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,];
 
     let enc = encrypt_block(&block, &enc_key);
-    println!("==============================");
-    println!("==============================");
-    println!("==============================");
-    println!("==============================");
-    for (i, byte) in enc.iter().enumerate() {
+    for byte in enc.iter() {
         print!("{:0>2x}", byte);
     }
+    print!("\n");
 
-    println!("\n==============================");
-    println!("==============================");
-    println!("==============================");
-    println!("==============================");
-
-
-    let sch = key_schedule(&enc_key);
-    for (i, round_key) in sch.iter().enumerate() {
-        println!("Round {}", i);
-        for (i, byte) in round_key.iter().enumerate() {
-            if i % 4 == 0 {
-                print!(" ");
-            }
-            print!("{:0>2x}", byte);
-        }
-        print!("\n");
-    }
     //let args: Vec<String> = env::args().collect();
     //let file_path = &args[1];
     //let mut file_handle = match File::open(file_path) {
