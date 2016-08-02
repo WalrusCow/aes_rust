@@ -1,7 +1,8 @@
-mod aes;
+use aes::AES;
 
 type ByteIterator = Iterator<Item=u8>;
 
+/*
 pub struct CTR {
     aes: AES,
 }
@@ -35,6 +36,8 @@ impl CTR {
     }
 
 }
+*/
+/*
 
 // TODO: How to do lifetimes??
 pub struct CTR_Iterator {
@@ -107,11 +110,57 @@ impl Iterator for CTR_Iterator {
             self.next_block_byte = 0;
         }
 
-        if let Some(next_byte) = data.next() {
+        if let Some(next_byte) = self.data.next() {
             self.next_block_byte += 1;
-            Some(next_byte ^ block[next_block_byte - 1])
+            Some(next_byte ^ self.block[self.next_block_byte - 1])
         } else {
             None
         }
+    }
+}
+*/
+
+pub fn increment_byte_array(byte_array: &mut [u8]) -> () {
+    // Start at len and go to zero to avoid negative overflow on usize
+    let mut idx = byte_array.len();
+    while idx > 0 && byte_array[idx - 1] == 0xff {
+        byte_array[idx - 1] = 0;
+        idx -= 1;
+    }
+    if idx != 0 {
+        byte_array[idx - 1] += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_array_increment() {
+        let mut arr = [0u8];
+        increment_byte_array(&mut arr);
+        assert_eq!(arr, [1u8]);
+    }
+
+    #[test]
+    fn short_array_increment_overflow() {
+        let mut arr = [0xffu8];
+        increment_byte_array(&mut arr);
+        assert_eq!(arr, [0u8]);
+    }
+
+    #[test]
+    fn long_array_increment() {
+        let mut arr = [1u8, 0xffu8];
+        increment_byte_array(&mut arr);
+        assert_eq!(arr, [2u8, 0u8]);
+    }
+
+    #[test]
+    fn long_array_increment_overflow() {
+        let mut arr = [0xffu8, 0xffu8, 0xffu8];
+        increment_byte_array(&mut arr);
+        assert_eq!(arr, [0u8, 0u8, 0u8]);
     }
 }
