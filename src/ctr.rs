@@ -1,7 +1,5 @@
 use aes::AES;
 
-type ByteIterator = Iterator<Item=u8>;
-
 pub struct CTR {
     aes: AES,
 }
@@ -13,12 +11,26 @@ impl CTR {
         }
     }
 
-    /// Handily, CTR encryption is the same as decryption
-    fn encrypt_or_decrypt<'data, 'own>(
-        &'own self,
-        nonce: &Vec<u8>,
-        data: &'data mut ByteIterator
-    ) -> CTR_Iterator<'data, 'own> {
+    pub fn get_stream(&self, nonce: &Vec<u8>) -> CtrByteStream {
+        CtrByteStream::new(&self.aes, &nonce)
+    }
+}
+
+pub struct CtrByteStream<'parent> {
+    // AES encryption (with key)
+    aes: &'parent AES,
+    // The nonce block we encrypted for this stage
+    nonce_block: [u8; 16],
+    // Nonce after being run through AES
+    encrypted_nonce: [u8; 16],
+    // Which byte in the encrypted nonce block to use next for the stream
+    next_block_byte: usize,
+    // How many times we have incremented the nonce block
+    block_counter: usize,
+}
+
+impl<'parent> CtrByteStream<'parent> {
+    fn new<'p>(aes: &'p AES, nonce: &Vec<u8>) -> CtrByteStream<'p> {
         // Must be shorter than a block
         assert!(nonce.len() <= 16);
 
@@ -27,73 +39,24 @@ impl CTR {
             nonce_block[i] = *b;
         }
 
-        CTR_Iterator::new(nonce_block, &mut data, &self.aes)
-    }
-
-    pub fn encrypt<'data, 'own>(
-        &'own self,
-        nonce: &Vec<u8>,
-        plaintext: &'data mut ByteIterator
-    ) -> CTR_Iterator<'data, 'own> {
-        self.encrypt_or_decrypt(&nonce, &mut plaintext)
-    }
-
-    pub fn decrypt<'data, 'own>(
-        &'own self,
-        nonce: &Vec<u8>,
-        ciphertext: &'data mut ByteIterator
-    ) -> CTR_Iterator<'data, 'own> {
-        self.encrypt_or_decrypt(&nonce, &mut ciphertext)
-    }
-
-}
-
-// TODO: How to do lifetimes??
-pub struct CTR_Iterator<'caller, 'parent> {
-    data: &'caller mut ByteIterator,
-    nonce_block: [u8; 16],
-    // This is the encrypted nonce block
-    block: [u8; 16],
-    // Which byte in the encrypted block to use next for the stream
-    next_block_byte: usize,
-    // The AES thingy to use
-    aes: &'parent AES,
-}
-
-impl<'caller, 'parent> CTR_Iterator<'caller, 'parent> {
-    fn new<'c, 'p>(
-        nonce_block: [u8; 16],
-        data: &'c mut ByteIterator,
-        aes: &'p AES
-    ) -> CTR_Iterator<'c, 'p> {
-        CTR_Iterator {
-            data: &mut data,
-            nonce_block: nonce_block,
-            block: [0u8; 16],
-            next_block_byte: 0,
+        CtrByteStream {
             aes: &aes,
+            encrypted_nonce: aes.encrypt_block(&nonce_block),
+            nonce_block: nonce_block,
+            next_block_byte: 0,
+            block_counter: 0,
         }
     }
-}
 
-impl<'caller, 'parent> Iterator for CTR_Iterator<'caller, 'parent> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<u8> {
-        if self.next_block_byte == 16 {
-            // We must encrypt the next block.
-            // Increment nonce by one, encrypt it under the aes key
+    fn encrypt_byte(&mut self, byte: u8) -> u8 {
+        if self.next_block_byte >= 16 {
             increment_byte_array(&mut self.nonce_block);
-            self.block = self.aes.encrypt_block(&self.nonce_block);
+            self.encrypted_nonce = self.aes.encrypt_block(&self.nonce_block);
             self.next_block_byte = 0;
+            self.block_counter += 1;
         }
 
-        if let Some(next_byte) = self.data.next() {
-            self.next_block_byte += 1;
-            Some(next_byte ^ self.block[self.next_block_byte - 1])
-        } else {
-            None
-        }
+        self.encrypted_nonce[self.next_block_byte] ^ byte
     }
 }
 
