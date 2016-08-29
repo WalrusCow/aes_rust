@@ -84,7 +84,7 @@ fn mix_columns(block: &[u8; 16]) -> [u8; 16] {
 }
 
 /// Do 128 bit AES key schedule
-fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
+fn key_schedule(key: &[u8]) -> [[u8; 16]; 11] {
 
     let xor_words = |a: &[u8], b: &[u8]| -> [u8; 4] {
         assert_eq!(a.len(), 4);
@@ -99,8 +99,8 @@ fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
 
     let mut round_keys: [[u8; 16]; 11] = [[0; 16]; 11];
     // Copy the original key as the first round key
-    for i in 0..16 {
-        round_keys[0][i] = key[i];
+    for (i, v) in key.iter().enumerate() {
+        round_keys[0][i] = *v;
     }
 
     let masks: [u8; 11] = [
@@ -146,7 +146,8 @@ pub struct AES {
 }
 
 impl AES {
-    pub fn new(key: &[u8; 16]) -> AES {
+    pub fn new(key: &[u8]) -> AES {
+        assert_eq!(key.len(), 16);
         AES {
             round_keys: key_schedule(key),
         }

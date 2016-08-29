@@ -55,7 +55,7 @@ fn main() {
             for b in buf.iter_mut().take(bytes_read) {
                 *b = stream.encrypt_byte(*b);
             }
-            write_handle.write_all(&buf[..bytes_read]);
+            write_handle.write_all(&buf[..bytes_read]).unwrap();
         }
     }
 }

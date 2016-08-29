@@ -5,7 +5,7 @@ pub struct CTR {
 }
 
 impl CTR {
-    pub fn new(key: &[u8; 16]) -> CTR {
+    pub fn new(key: &[u8]) -> CTR {
         CTR {
             aes: AES::new(&key),
         }
