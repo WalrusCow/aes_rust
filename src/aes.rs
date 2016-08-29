@@ -109,7 +109,6 @@ fn key_schedule(key: &[u8; 16]) -> [[u8; 16]; 11] {
         0x20, 0x40, 0x80, 0x1b, 0x36,
     ];
 
-
     // We need to generate 10 more round keys
     for round in 1..11 {
         let round_fn = |key: &[u8]| -> [u8; 4] {

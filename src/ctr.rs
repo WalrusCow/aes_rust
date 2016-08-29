@@ -11,7 +11,7 @@ impl CTR {
         }
     }
 
-    pub fn get_stream(&self, nonce: &Vec<u8>) -> CtrByteStream {
+    pub fn get_stream(&self, nonce: &[u8]) -> CtrByteStream {
         CtrByteStream::new(&self.aes, &nonce)
     }
 }
@@ -30,7 +30,7 @@ pub struct CtrByteStream<'parent> {
 }
 
 impl<'parent> CtrByteStream<'parent> {
-    fn new<'p>(aes: &'p AES, nonce: &Vec<u8>) -> CtrByteStream<'p> {
+    fn new<'p>(aes: &'p AES, nonce: &[u8]) -> CtrByteStream<'p> {
         // Must be shorter than a block
         assert!(nonce.len() <= 16);
 
@@ -62,46 +62,33 @@ impl<'parent> CtrByteStream<'parent> {
     }
 }
 
-fn increment_byte_array(byte_array: &mut [u8]) -> () {
-    // Start at len and go to zero to avoid negative overflow on usize
-    let mut idx = byte_array.len();
-    while idx > 0 && byte_array[idx - 1] == 0xff {
-        byte_array[idx - 1] = 0;
-        idx -= 1;
-    }
-    if idx != 0 {
-        byte_array[idx - 1] += 1;
+fn increment_byte_array(byte_array: &mut [u8]) {
+    for v in byte_array.iter_mut().rev() {
+        let (ans, overflow) = v.overflowing_add(1);
+        *v = ans;
+
+        if !overflow {
+            break;
+        }
     }
 }
 
 // Tests for private function
 #[cfg(test)]
 #[test]
-fn short_array_increment() {
+fn array_increment() {
     let mut arr = [0u8];
     increment_byte_array(&mut arr);
     assert_eq!(arr, [1u8]);
-}
 
-#[cfg(test)]
-#[test]
-fn short_array_increment_overflow() {
     let mut arr = [0xffu8];
     increment_byte_array(&mut arr);
     assert_eq!(arr, [0u8]);
-}
 
-#[cfg(test)]
-#[test]
-fn long_array_increment() {
     let mut arr = [1u8, 0xffu8];
     increment_byte_array(&mut arr);
     assert_eq!(arr, [2u8, 0u8]);
-}
 
-#[cfg(test)]
-#[test]
-fn long_array_increment_overflow() {
     let mut arr = [0xffu8, 0xffu8, 0xffu8];
     increment_byte_array(&mut arr);
     assert_eq!(arr, [0u8, 0u8, 0u8]);
