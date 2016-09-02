@@ -1,4 +1,4 @@
 mod aes;
-mod ctr;
+pub mod ctr;
 
 pub use ctr::CTR;
